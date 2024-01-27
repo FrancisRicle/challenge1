@@ -25,11 +25,6 @@ function groupBy(data, fn) {
 }
 async function participantes(params, desde, hasta) {
   const resumenPeriodo = await getResumenParticipantes(params, desde, hasta);
-  /**
-   * {
-   *
-   * }
-   */
   return resumenPeriodo;
 }
 async function ventas(params, desde, hasta) {
@@ -67,15 +62,9 @@ function useImportes(desde, hasta) {
 }
 function useParticipantes(zona, desde, hasta, filter) {
   const params = useParams();
-  const reduceReservados = (p, c) => {
-    return p + c.Participantes;
-  };
-  const reduceCargados = (p, c) => {
-    return p + c.IntegrantesCargados;
-  };
-  const reduceCheckIns = (p, c) => {
-    return p + c.IntegrantesCargadosConCheckIn;
-  };
+  const reduceReservados = (p, c) => p + c.Participantes;
+  const reduceCargados = (p, c) => p + c.IntegrantesCargados;
+  const reduceCheckIns = (p, c) => p + c.IntegrantesCargadosConCheckIn;
   const participantesRangeData = useAsync(
     () => participantes(params, desde, hasta),
     [params, desde, hasta],
@@ -117,7 +106,7 @@ function useParticipantesDay(zona, day) {
     format(new Date(d.FechaReservaInicio), "HH:mm")
   );
 }
-const Home = () => {
+export default function Home() {
   const day = useDay();
   const [desde, hasta] = useRange();
   const zona = useZona();
@@ -218,4 +207,4 @@ const Home = () => {
       </div>
     </div>
   );
-};
+}
