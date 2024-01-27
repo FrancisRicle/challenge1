@@ -47,6 +47,7 @@ async function participantes(params, desde, hasta) {
 async function ventas(params, desde, hasta) {
   return await getResumenVentas(params, desde, hasta);
 }
+
 function useVentas(desde, hasta, attr) {
   const params = useParams();
   const ventasData = useAsync(
@@ -57,15 +58,17 @@ function useVentas(desde, hasta, attr) {
   // como es un calculo complejo evito que se recalcule en cada renderizado.
   return useMemo(() => {
     const res = [];
-    const filter = (d) => format(new Date(d.FechaReservaInicio), "dd/MM/yyyy");
     if (ventasData.result) {
-      const g = groupBy(ventasData.result, filter);
-      for (const k in g) {
+      // agrupo por dia
+      const filter = (d) =>
+        format(new Date(d.FechaReservaInicio), "dd/MM/yyyy");
+      const groups = groupBy(ventasData.result, filter);
+      for (const day in groups) {
         // Los graficos reciben dia como eje x web y local como ejes y
         res.push({
-          dia: k,
-          web: g[k].find((w) => w.Origen === "WEB")?.[attr] || 0,
-          local: g[k].find((l) => l.Origen === "LOCAL")?.[attr] || 0,
+          dia: day,
+          web: groups[day].find((w) => w.Origen === "WEB")?.[attr] || 0, // busco el atributo Operaciones/ImporteTotal en WEB
+          local: groups[day].find((l) => l.Origen === "LOCAL")?.[attr] || 0, // busco el atributo Operaciones/ImporteTotal en LOCAL
         });
       }
     }
@@ -80,8 +83,11 @@ function useImportes(desde, hasta) {
 }
 function useParticipantes(zona, desde, hasta, filter) {
   const params = useParams();
+  // suma los reservados en una fecha
   const reduceReservados = (p, c) => p + c.Participantes;
+  // suma los cargados en una fecha
   const reduceCargados = (p, c) => p + c.IntegrantesCargados;
+  // suma los checkins en una fecha
   const reduceCheckIns = (p, c) => p + c.IntegrantesCargadosConCheckIn;
   const participantesRangeData = useAsync(
     () => participantes(params, desde, hasta),
@@ -96,19 +102,19 @@ function useParticipantes(zona, desde, hasta, filter) {
       zona
     ) {
       const data = [];
-      const g = groupBy(
+      const groups = groupBy(
         participantesRangeData.result.filter(
           (p) => p.CodigoArticulo === zona.CodigoArticulo
         ),
-        filter
+        filter // agrupa por dia o por hora
       );
-      for (const k in g) {
+      for (const day in groups) {
         // Los graficos reciben dia como eje x reservados , cargados y checkins como ejes y
         data.push({
-          dia: k,
-          reservados: g[k].reduce(reduceReservados, 0),
-          cargados: g[k].reduce(reduceCargados, 0),
-          checkIns: g[k].reduce(reduceCheckIns, 0),
+          dia: day,
+          reservados: groups[dia].reduce(reduceReservados, 0),
+          cargados: groups[dia].reduce(reduceCargados, 0),
+          checkIns: groups[dia].reduce(reduceCheckIns, 0),
         });
       }
       return data;
@@ -118,22 +124,27 @@ function useParticipantes(zona, desde, hasta, filter) {
 }
 function useParticipantesRange(zona, desde, hasta) {
   return useParticipantes(zona, desde, hasta, (d) =>
+    // agrupo por dia
     format(new Date(d.FechaReservaInicio), "dd/MM/yyyy")
   );
 }
 function useParticipantesDay(zona, day) {
   return useParticipantes(zona, day, day, (d) =>
+    // agrupo por hora
     format(new Date(d.FechaReservaInicio), "HH:mm")
   );
 }
 export default function Home() {
-  const day = useDay();
-  const [desde, hasta] = useRange();
+  // zona selecionada
   const zona = useZona();
+  // periodo seleccionado
+  const [desde, hasta] = useRange();
   const participantesRangeData = useParticipantesRange(zona, desde, hasta);
-  const participantesDayData = useParticipantesDay(zona, day);
   const operaciones = useOperciones(desde, hasta);
   const importes = useImportes(desde, hasta);
+  // dia actual o selecionado
+  const day = useDay();
+  const participantesDayData = useParticipantesDay(zona, day);
   const operacionesDay = useOperciones(day, day);
   const importesDay = useImportes(day, day);
   // El total para hacer un resumen
@@ -141,7 +152,6 @@ export default function Home() {
     () => importes.reduce((p, c) => p + c.web + c.local, 0),
     [importes]
   );
-  // El total para hacer un resumen
   const operacionesTotal = useMemo(
     () => operaciones.reduce((p, c) => p + c.web + c.local, 0),
     [operaciones]
