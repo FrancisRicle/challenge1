@@ -1,15 +1,30 @@
 import { useMemo } from "react";
 import { useParams } from "react-router-dom";
-import { useAsync } from "hooks";
 import { format } from "date-fns";
+/* 
+  useAsync permite realizar una promesa y retorna su estado, 
+  resultado en caso de exito y error en caso de error.
+  Recibe una funcion que retorna la promesa, las dependencias (volvera a ejecutar la promesa cuando estos cambien),
+  y un valor booleano si es true se ejecuta en el primer renderizado del componente caso controrio se ejecuta solo si las dependencias cambian
+*/
+import { useAsync } from "hooks";
+/* 
+  useDay retorna el dia selecionado para crear el grafico.
+  useRange retorna el rango selecciona ".
+  useZone retorna la zona seleccionada (ZONA DE SALTO -> Z1/Z2, ZONA DE JUEGOS -> ZJ)".
+*/
 import { useDay, useRange, useZona } from "hooks/dashboard";
+/* Apis */
 import { getResumenParticipantes, getResumenVentas } from "apis/dashboard";
+/* Graficos de react-charts */
 import BigChartBoxRange from "../bigChartBox/BigChartBox";
 import BigChartBox from "../bigChartBoxRange/BigChartBoxRange";
 import ChartBox from "../chartBox/ChartBox";
 import PieChartBox from "../pieCartBox/PieChartBox";
 import PieChartBoxImportes from "../pieCartBoxImportes/PieChartBoxImportes";
+/* estilos */
 import "./home.scss";
+/* Con un array de objectos  retorna un objeto con las claves igual la resultado de la funcion fn. Similar a Object.groupBy Solo que no es estandar al momento*/
 function groupBy(data, fn) {
   const res = {};
   const getOrDef = (key) => {
@@ -23,25 +38,30 @@ function groupBy(data, fn) {
   }
   return res;
 }
+/** API para participantes cargados, reservados, checkins */
 async function participantes(params, desde, hasta) {
   const resumenPeriodo = await getResumenParticipantes(params, desde, hasta);
   return resumenPeriodo;
 }
+/** API para ganancios Operaciones, Origen (WEB/LOCAL) Importe */
 async function ventas(params, desde, hasta) {
   return await getResumenVentas(params, desde, hasta);
 }
-function useVentas(desde, hasta, filter, attr) {
+function useVentas(desde, hasta, attr) {
   const params = useParams();
   const ventasData = useAsync(
     () => ventas(params, desde, hasta),
     [params, desde, hasta],
-    desde === hasta
+    desde === hasta // por defecto se usa la fecha actual para el grafico del dia
   );
+  // como es un calculo complejo evito que se recalcule en cada renderizado.
   return useMemo(() => {
     const res = [];
+    const filter = (d) => format(new Date(d.FechaReservaInicio), "dd/MM/yyyy");
     if (ventasData.result) {
       const g = groupBy(ventasData.result, filter);
       for (const k in g) {
+        // Los graficos reciben dia como eje x web y local como ejes y
         res.push({
           dia: k,
           web: g[k].find((w) => w.Origen === "WEB")?.[attr] || 0,
@@ -53,12 +73,10 @@ function useVentas(desde, hasta, filter, attr) {
   }, [ventasData]);
 }
 function useOperciones(desde, hasta) {
-  const filter = (d) => format(new Date(d.FechaReservaInicio), "dd/MM/yyyy");
-  return useVentas(desde, hasta, filter, "Operaciones");
+  return useVentas(desde, hasta, "Operaciones");
 }
 function useImportes(desde, hasta) {
-  const filter = (d) => format(new Date(d.FechaReservaInicio), "dd/MM/yyyy");
-  return useVentas(desde, hasta, filter, "ImporteTotal");
+  return useVentas(desde, hasta, "ImporteTotal");
 }
 function useParticipantes(zona, desde, hasta, filter) {
   const params = useParams();
@@ -68,8 +86,9 @@ function useParticipantes(zona, desde, hasta, filter) {
   const participantesRangeData = useAsync(
     () => participantes(params, desde, hasta),
     [params, desde, hasta],
-    desde === hasta
+    desde === hasta // por defecto se usa la fecha actual para el grafico del dia
   );
+  // como es un calculo complejo evito que se recalcule en cada renderizado.
   return useMemo(() => {
     if (
       participantesRangeData.status === "success" &&
@@ -84,6 +103,7 @@ function useParticipantes(zona, desde, hasta, filter) {
         filter
       );
       for (const k in g) {
+        // Los graficos reciben dia como eje x reservados , cargados y checkins como ejes y
         data.push({
           dia: k,
           reservados: g[k].reduce(reduceReservados, 0),
@@ -116,10 +136,12 @@ export default function Home() {
   const importes = useImportes(desde, hasta);
   const operacionesDay = useOperciones(day, day);
   const importesDay = useImportes(day, day);
+  // El total para hacer un resumen
   const importesTotal = useMemo(
     () => importes.reduce((p, c) => p + c.web + c.local, 0),
     [importes]
   );
+  // El total para hacer un resumen
   const operacionesTotal = useMemo(
     () => operaciones.reduce((p, c) => p + c.web + c.local, 0),
     [operaciones]

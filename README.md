@@ -24,3 +24,5 @@ Ademas de una api para las ganancias.
     "ImporteTotal": 2010
 },`
 Ademas con las ganacias se pide diferenciar de las producidas mediante el citio web y las que son hechas en el local.
+
+ACLARACION: No se tiene acceso a la api. Y tampoco esta la posibilidad de usar graphQL.
